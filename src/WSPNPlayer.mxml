@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:WindowedApplication xmlns:fx="http://ns.adobe.com/mxml/2009" 
+					   xmlns:s="library://ns.adobe.com/flex/spark" 
+					   xmlns:mx="library://ns.adobe.com/flex/mx" width="185" height="41" currentState="Stopped" height.Playing="143" height.Stopped="143" width.Playing="223" width.Stopped="223"
+					   showStatusBar="false">
+
+	<fx:Script>
+		<![CDATA[
+			import flash.utils.setTimeout;
+			
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			
+			// The URL for the streaming server
+			private var request:URLRequest = new URLRequest("http://141.222.94.19:8000/");
+			
+			// A loader to make sure we only buffer one second of audio before we start playing (so it starts very fast)
+			private var context:SoundLoaderContext = new SoundLoaderContext(1000, false);
+			
+			private var soundFactory:Sound = null;
+			private var song:SoundChannel = null;
+
+			protected function playButton_clickHandler(event:MouseEvent):void
+			{
+				// The user clicked the play button, start playing
+				startSound();
+			}
+			
+			private function startSound():void
+			{
+				// If this is the first time we've attempted to use the request object then we need to set some parameters
+				if(request.requestHeaders.length == 0) {
+					// Accept any content type
+					var acceptHeader:URLRequestHeader = new URLRequestHeader("Accept", "*/*");
+					request.requestHeaders.push(acceptHeader);
+					
+					// Set the user agent.  The ShoutCast server redirects anything that looks like a browser to the status page.
+					request.userAgent = "WSPN Player";
+				}
+
+				// Create the sound factory
+				soundFactory = new Sound();
+				
+				// Add the event handlers
+				soundFactory.addEventListener(Event.COMPLETE, completeHandler);
+				soundFactory.addEventListener(Event.ID3, id3Handler);
+				soundFactory.addEventListener(IOErrorEvent.IO_ERROR, ioErrorHandler);
+				soundFactory.addEventListener(ProgressEvent.PROGRESS, progressHandler);
+				
+				// Start fetching from the URL
+				soundFactory.load(request, context);
+				
+				// Start playing
+				song = soundFactory.play();
+				
+				// Go to the playing state
+				currentState = "Playing";
+			}
+			
+			private function errorHandler(errorEvent:IOErrorEvent):void
+			{
+				Alert.show("The sound could not be loaded: " + errorEvent.text);
+			}
+			
+			protected function stopButton_clickHandler(event:MouseEvent):void
+			{
+				// User clicked the stop button
+				
+				// Clean up
+				cleanUpSound();
+				
+				// Go to stopped state
+				currentState = "Stopped";
+			}
+			
+			private function cleanUpSound():void
+			{
+				// Clean up the sound factory if necessary
+				if(soundFactory != null) {
+					soundFactory.close();
+					soundFactory = null;
+				}
+				
+				// Clean up the song if necessary
+				if(song != null) {
+					song.stop();
+					song = null;
+				}
+			}
+			
+			private function completeHandler(event:Event):void {
+				trace("completeHandler: " + event);
+			}
+			
+			private function id3Handler(event:Event):void {
+				trace("id3Handler: " + event);
+			}
+			
+			private function ioErrorHandler(event:Event):void {
+				// Something went wrong
+				
+				// Clean up
+				cleanUpSound();
+				
+				// And try to start the sound again in 5 seconds so we don't hammer the server
+				setTimeout(startSound, 5000);
+			}
+			
+			private function progressHandler(event:ProgressEvent):void {
+				trace("progressHandler: " + event);
+			}		
+
+		]]>
+	</fx:Script>
+	<s:states>
+		<s:State name="Playing"/>
+		<s:State name="Stopped"/>
+	</s:states>
+
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<s:Button x="10" y="10" label="Play" width="165" click.Stopped="playButton_clickHandler(event)" label.Playing="Stop" click.Playing="stopButton_clickHandler(event)" width.Playing="201" x.Playing="12" width.Stopped="200" x.Stopped="12"/>
+	<mx:Image includeIn="Playing" x="12" y="39" source="wspn-player.png"/>
+	<mx:Image x="12" y="39" source="wspn-player.png" includeIn="Stopped"/>
+</s:WindowedApplication>
